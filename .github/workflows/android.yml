@@ -24,17 +24,18 @@ jobs:
     - name: Build with Gradle
       run: ./gradlew assembleDebug
 
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: drum-stroke-counter-apk
-        path: app/build/outputs/apk/debug/*.apk
+    - name: Generate Tag Name
+      id: tag_name
+      run: echo "tag=v1.0.${{ github.run_number }}" >> $GITHUB_OUTPUT
 
-    # Optional: Automatically create a release tag and upload APK to GitHub Releases
-    - name: Create Release
-      if: startsWith(github.ref, 'refs/tags/v')
+    - name: Create Release and Upload APK
       uses: softprops/action-gh-release@v2
       with:
+        tag_name: ${{ steps.tag_name.outputs.tag }}
+        name: Release ${{ steps.tag_name.outputs.tag }}
         files: app/build/outputs/apk/debug/*.apk
+        body: |
+          Automatic build for version ${{ steps.tag_name.outputs.tag }}
+          Generated from commit: ${{ github.sha }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
