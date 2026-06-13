@@ -12,7 +12,7 @@ class UpdateRepository @Inject constructor() {
     
     suspend fun checkForUpdates(): Map<String, Any>? = withContext(Dispatchers.IO) {
         try {
-            val versionJsonUrl = "https://raw.githubusercontent.com/USERNAME_ANDA/drum-stroke-counter/main/version.json"
+            val versionJsonUrl = "https://raw.githubusercontent.com/fesstudio/Drum-Stroke-Counter/master/version.json"
             val jsonContent = URL(versionJsonUrl).readText()
             val gson = Gson()
             @Suppress("UNCHECKED_CAST")

@@ -508,10 +508,13 @@ fun SettingsDrawerContent(
             DrawerClickableItem(Icons.Default.Share, stringResource(R.string.share_app)) {
                 val sendIntent = Intent().apply {
                     action = Intent.ACTION_SEND
-                    putExtra(Intent.EXTRA_TEXT, "Check out this Drum Stroke Counter app: https://sfl.gl/u5HsjSLf")
+                    putExtra(Intent.EXTRA_TEXT, "Check out this Drum Stroke Counter app: https://github.com/fesstudio/Drum-Stroke-Counter")
                     type = "text/plain"
                 }
-                context.startActivity(Intent.createChooser(sendIntent, null))
+                val shareIntent = Intent.createChooser(sendIntent, null).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(shareIntent)
                 onCloseDrawer()
             }
 
