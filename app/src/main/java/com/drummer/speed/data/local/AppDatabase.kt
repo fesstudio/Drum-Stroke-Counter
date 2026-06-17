@@ -6,7 +6,11 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.drummer.speed.data.model.SessionResult
 
-@Database(entities = [SessionResult::class], version = 1, exportSchema = false)
+@Database(
+    entities = [SessionResult::class], 
+    version = 1, 
+    exportSchema = true
+)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun historyDao(): HistoryDao
 
@@ -20,7 +24,9 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "drum_counter_database"
-                ).build()
+                )
+                .fallbackToDestructiveMigration(dropAllTables = false) // Safely handle structural changes
+                .build()
                 INSTANCE = instance
                 instance
             }

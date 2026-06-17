@@ -27,6 +27,10 @@
     <string name="donate">Donasi FES.Studio</string>
     <string name="share_app">Bagikan Aplikasi Ini</string>
     <string name="select_all">Pilih Semua</string>
+    <string name="deselect_all">Batal Pilih Semua</string>
+    <string name="selected_count">%1$d Terpilih</string>
+    <string name="select_all_sessions">Pilih Semua Sesi</string>
+    <string name="deselect_all_sessions">Batal Pilih Semua Sesi</string>
     <string name="exit_title">Keluar Aplikasi</string>
     <string name="exit_confirm">Apakah Anda yakin ingin keluar?</string>
     <string name="delete_selected_confirm">Hapus semua history yang dipilih?</string>
@@ -62,4 +66,15 @@
     <string name="max_strokes">Rekor Pribadi</string>
     <string name="total_sessions">Total Sesi</string>
     <string name="stats_trend">Tren 7 Sesi Terakhir</string>
+    <string name="check_update">Cek Pembaruan</string>
+    <string name="no_update_available">Aplikasi sudah versi terbaru.</string>
+    <string name="downloading_update">Mengunduh pembaruan…</string>
+    <string name="install_update">Pasang</string>
+    <string name="ok">OKE</string>
+    <string name="calibration_start_desc">Tekan Mulai untuk memulai kalibrasi. Pastikan Anda berada di lingkungan latihan yang biasa.</string>
+    <string name="last_7_sessions">7 Terakhir</string>
+    <string name="general_section">UMUM</string>
+    <string name="support_section">DUKUNGAN</string>
+    <string name="save">Simpan</string>
+    <string name="share">Bagikan</string>
 </resources>

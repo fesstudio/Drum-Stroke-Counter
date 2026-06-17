@@ -26,7 +26,9 @@ jobs:
 
     - name: Generate Tag Name
       id: tag_name
-      run: echo "tag=v1.0.${{ github.run_number }}" >> $GITHUB_OUTPUT
+      run: |
+        VERSION=$(grep "versionName =" app/build.gradle.kts | awk -F'"' '{print $2}')
+        echo "tag=v$VERSION" >> $GITHUB_OUTPUT
 
     - name: Create Release and Upload APK
       uses: softprops/action-gh-release@v2
@@ -34,8 +36,6 @@ jobs:
         tag_name: ${{ steps.tag_name.outputs.tag }}
         name: Release ${{ steps.tag_name.outputs.tag }}
         files: app/build/outputs/apk/debug/*.apk
-        body: |
-          Automatic build for version ${{ steps.tag_name.outputs.tag }}
-          Generated from commit: ${{ github.sha }}
+        generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

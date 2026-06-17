@@ -7,6 +7,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,13 +17,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import java.text.SimpleDateFormat
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.drummer.speed.R
 import com.drummer.speed.data.model.SessionResult
+import com.drummer.speed.ui.components.EmptyStateView
 import java.util.*
 
 @Composable
@@ -52,9 +58,11 @@ fun StatisticsPage(
 
         if (history.isEmpty()) {
             item {
-                Box(modifier = Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(stringResource(R.string.no_data), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                EmptyStateView(
+                    icon = Icons.Default.BarChart,
+                    message = stringResource(R.string.no_data),
+                    modifier = Modifier.fillParentMaxHeight(0.7f)
+                )
             }
         } else {
             item {
@@ -80,29 +88,63 @@ fun AnimatedBarChart(history: List<SessionResult>) {
     val maxInChart = remember(lastSessions) {
         (lastSessions.maxOfOrNull { it.strokes } ?: 0).coerceAtLeast(1)
     }
+    
+    val dateFormatter = remember { SimpleDateFormat("dd/MM", Locale.getDefault()) }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+        shape = RoundedCornerShape(24.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = stringResource(R.string.stats_trend),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.height(16.dp))
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.stats_trend),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.last_7_sessions),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
             
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(150.dp),
-                contentAlignment = Alignment.BottomCenter
+                    .height(180.dp)
             ) {
+                // Background Grid Lines
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.SpaceBetween
+                ) {
+                    repeat(4) {
+                        HorizontalDivider(
+                            thickness = 0.5.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(20.dp)) // Space for labels
+                }
+
                 Row(
                     modifier = Modifier.fillMaxSize(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
@@ -131,20 +173,39 @@ fun AnimatedBarChart(history: List<SessionResult>) {
                                     .fillMaxWidth(),
                                 contentAlignment = Alignment.BottomCenter
                             ) {
+                                // Bar with Gradient
                                 Box(
                                     modifier = Modifier
                                         .fillMaxHeight(animatedHeight.value.coerceAtLeast(0.01f))
-                                        .fillMaxWidth(0.6f)
-                                        .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                        .background(MaterialTheme.colorScheme.primary)
+                                        .fillMaxWidth(0.5f)
+                                        .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
+                                        .background(
+                                            brush = Brush.verticalGradient(
+                                                colors = listOf(
+                                                    MaterialTheme.colorScheme.primary,
+                                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                                                )
+                                            )
+                                        )
                                 )
                             }
-                            Spacer(modifier = Modifier.height(4.dp))
+                            
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            // Value Label
                             Text(
                                 text = result.strokes.toString(),
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            
+                            // Date Label
+                            Text(
+                                text = dateFormatter.format(Date(result.timestamp)),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 8.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                             )
                         }
                     }
@@ -159,8 +220,10 @@ fun StatCard(label: String, value: String) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            .padding(vertical = 6.dp),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
             modifier = Modifier

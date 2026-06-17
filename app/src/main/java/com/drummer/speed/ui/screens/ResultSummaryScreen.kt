@@ -60,7 +60,7 @@ fun ResultSummaryScreen(
                     Toast.makeText(context, context.getString(R.string.save_success), Toast.LENGTH_SHORT).show()
                 }
             }, modifier = Modifier.size(56.dp).background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)) {
-                Icon(Icons.Default.Download, contentDescription = "Save", tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                Icon(Icons.Default.Download, contentDescription = stringResource(R.string.save), tint = MaterialTheme.colorScheme.onSecondaryContainer)
             }
             Spacer(modifier = Modifier.width(24.dp))
             IconButton(onClick = {
@@ -78,7 +78,7 @@ fun ResultSummaryScreen(
                     context.startActivity(Intent.createChooser(shareIntent, context.getString(R.string.share_result)))
                 }
             }, modifier = Modifier.size(56.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape)) {
-                Icon(Icons.Default.Share, contentDescription = "Share", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                Icon(Icons.Default.Share, contentDescription = stringResource(R.string.share), tint = MaterialTheme.colorScheme.onPrimaryContainer)
             }
         }
     }

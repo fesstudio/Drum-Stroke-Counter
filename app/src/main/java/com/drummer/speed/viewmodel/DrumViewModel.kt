@@ -2,6 +2,9 @@ package com.drummer.speed.viewmodel
 
 import android.annotation.SuppressLint
 import android.app.Application
+import android.os.Build
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioRecord
@@ -10,6 +13,12 @@ import android.media.ToneGenerator
 import androidx.compose.runtime.*
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
+import androidx.core.content.FileProvider
+import com.drummer.speed.R
 import com.drummer.speed.data.repository.DrumRepository
 import com.drummer.speed.data.repository.UpdateRepository
 import com.drummer.speed.data.model.SessionResult
@@ -19,19 +28,26 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
+import java.io.File
 import kotlin.math.abs
 
 @HiltViewModel
 class DrumViewModel @Inject constructor(
     private val repository: DrumRepository,
-    private val updateRepository: UpdateRepository
+    private val updateRepository: UpdateRepository,
+    application: Application
 ) : ViewModel() {
+
+    private val audioManager = application.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private var audioFocusRequest: AudioFocusRequest? = null
 
     // Update States
     var showUpdateDialog by mutableStateOf(false)
     var downloadUrl by mutableStateOf("")
+    var downloadProgress by mutableIntStateOf(-1) // -1: Not downloading, 0-100: Progress
+    var isUpdateAvailable by mutableStateOf<Boolean?>(null) // null: Not checked, true: Yes, false: No
 
-    fun checkAppUpdate(currentVersionCode: Int) {
+    fun checkAppUpdate(currentVersionCode: Int, showToastIfNoUpdate: Boolean = false, context: Context? = null) {
         viewModelScope.launch {
             val updateData = updateRepository.checkForUpdates()
             if (updateData != null) {
@@ -41,9 +57,53 @@ class DrumViewModel @Inject constructor(
                 if (latestVersionCode > currentVersionCode) {
                     downloadUrl = url
                     showUpdateDialog = true
+                    isUpdateAvailable = true
+                } else {
+                    isUpdateAvailable = false
+                    if (showToastIfNoUpdate && context != null) {
+                        Toast.makeText(context, context.getString(R.string.no_update_available), Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } else {
+                if (showToastIfNoUpdate && context != null) {
+                    Toast.makeText(context, context.getString(R.string.no_update_available), Toast.LENGTH_SHORT).show()
                 }
             }
         }
+    }
+
+    fun startUpdateDownload(context: Context) {
+        val targetFile = File(context.getExternalFilesDir(null), "update.apk")
+        if (targetFile.exists()) targetFile.delete()
+
+        viewModelScope.launch {
+            updateRepository.downloadApk(downloadUrl, targetFile).collect { status ->
+                when (status) {
+                    is UpdateRepository.DownloadStatus.Progress -> {
+                        downloadProgress = status.percentage
+                    }
+                    is UpdateRepository.DownloadStatus.Success -> {
+                        downloadProgress = -1
+                        showUpdateDialog = false
+                        installApk(context, status.file)
+                    }
+                    is UpdateRepository.DownloadStatus.Error -> {
+                        downloadProgress = -1
+                        Toast.makeText(context, "Download failed: ${status.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun installApk(context: Context, file: File) {
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/vnd.android.package-archive")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
     }
 
     // History from Repository
@@ -110,7 +170,7 @@ class DrumViewModel @Inject constructor(
                 timeLeft = timerSeconds
             }
             isRunning = true
-            
+            requestAudioFocus()
             runPracticeSession(onFinished)
         }
     }
@@ -212,6 +272,49 @@ class DrumViewModel @Inject constructor(
         audioJob?.cancel()
         timerJob?.cancel()
         metronomeJob?.cancel()
+        releaseAudioFocus()
+    }
+
+    private fun requestAudioFocus(): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val playbackAttributes = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                .build()
+            
+            audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                .setAudioAttributes(playbackAttributes)
+                .setOnAudioFocusChangeListener { focusChange ->
+                    if (focusChange == AudioManager.AUDIOFOCUS_LOSS || 
+                        focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
+                        stopPractice()
+                    }
+                }
+                .build()
+            
+            return audioManager.requestAudioFocus(audioFocusRequest!!) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        } else {
+            @Suppress("DEPRECATION")
+            return audioManager.requestAudioFocus(
+                { focusChange ->
+                    if (focusChange == AudioManager.AUDIOFOCUS_LOSS || 
+                        focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
+                        stopPractice()
+                    }
+                },
+                AudioManager.STREAM_MUSIC,
+                AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
+            ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        }
+    }
+
+    private fun releaseAudioFocus() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.abandonAudioFocus(null)
+        }
     }
 
     fun resetPractice() {

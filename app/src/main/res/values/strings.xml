@@ -27,6 +27,10 @@
     <string name="donate">Support FES.Studio</string>
     <string name="share_app">Share This App</string>
     <string name="select_all">Select All</string>
+    <string name="deselect_all">Deselect All</string>
+    <string name="selected_count">%1$d Selected</string>
+    <string name="select_all_sessions">Select All Sessions</string>
+    <string name="deselect_all_sessions">Deselect All Sessions</string>
     <string name="exit_title">Exit Application</string>
     <string name="exit_confirm">Are you sure you want to exit?</string>
     <string name="delete_selected_confirm">Delete all selected history?</string>
@@ -62,4 +66,15 @@
     <string name="max_strokes">Personal Best</string>
     <string name="total_sessions">Total Sessions</string>
     <string name="stats_trend">Last 7 Sessions Trend</string>
+    <string name="check_update">Check for Update</string>
+    <string name="no_update_available">Application is up to date.</string>
+    <string name="downloading_update">Downloading update...</string>
+    <string name="install_update">Install</string>
+    <string name="ok">OK</string>
+    <string name="calibration_start_desc">Click Start to begin calibration. Make sure you are in a typical practice environment.</string>
+    <string name="last_7_sessions">Last 7</string>
+    <string name="general_section">GENERAL</string>
+    <string name="support_section">SUPPORT</string>
+    <string name="save">Save</string>
+    <string name="share">Share</string>
 </resources>

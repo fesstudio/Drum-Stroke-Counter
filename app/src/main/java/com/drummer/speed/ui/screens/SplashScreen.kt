@@ -13,6 +13,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
 import com.drummer.speed.R
 import kotlinx.coroutines.delay
 
@@ -44,7 +45,7 @@ fun SplashScreen(onFinished: () -> Unit) {
             
             Spacer(modifier = Modifier.height(24.dp))
             Text(
-                text = "Drum Stroke Counter",
+                text = stringResource(R.string.app_name),
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
