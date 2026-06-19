@@ -77,4 +77,61 @@
     <string name="support_section">DUKUNGAN</string>
     <string name="save">Simpan</string>
     <string name="share">Bagikan</string>
+
+    <!-- New strings for refactored UI -->
+    <string name="update_available">Pembaruan Tersedia</string>
+    <string name="update_description">Versi baru aplikasi tersedia. Apakah Anda ingin memperbarui sekarang?</string>
+    <string name="update">Perbarui</string>
+    <string name="later">Nanti</string>
+    <string name="splash_tagline">Pantau Progres Drum Anda</string>
+    <string name="about_description">Drum Stroke Counter dirancang untuk drummer memantau progres latihan secara akurat dan privat.</string>
+    <string name="about_features">Fitur:\n• Deteksi pukulan real-time via mikrofon\n• Timer &amp; metronom yang dapat diatur\n• Kalibrasi pintar untuk sensitivitas\n• Riwayat &amp; statistik latihan\n• Simpan &amp; bagikan hasil</string>
+    <string name="about_credit">Dibuat oleh %s</string>
+    <string name="version_label">Versi %s</string>
+    <string name="exit_confirm_description">Apakah Anda yakin ingin keluar dari aplikasi?</string>
+    <string name="exit">Keluar</string>
+    <string name="cancel">Batal</string>
+    <string name="grant_permission">Berikan Izin</string>
+    <string name="permission_required">Izin Mikrofon Diperlukan</string>
+    <string name="permission_description">Aplikasi ini membutuhkan akses mikrofon untuk mendeteksi pukulan drum Anda. Harap berikan izin untuk melanjutkan.</string>
+    <string name="no_statistics">Belum ada statistik tersedia.\nMulai berlatih untuk melihat statistik Anda!</string>
+    <string name="recent_sessions">Sesi Terbaru</string>
+    <string name="best_sessions">Sesi Terbaik</string>
+    <string name="most_strokes">Pukulan Terbanyak</string>
+    <string name="fastest_speed">Kecepatan Tertinggi</string>
+    <string name="avg_speed">Kecepatan Rata-rata</string>
+    <string name="total_time">Total Waktu</string>
+    <string name="sessions">Sesi</string>
+    <string name="strokes_per_sec">/detik</string>
+    <string name="no_history">Belum ada riwayat latihan.\nMulai sesi untuk melihat hasil Anda!</string>
+    <string name="selected">terpilih</string>
+    <string name="calibration_description">Kalibrasi Pintar akan menganalisis lingkungan dan kekuatan pukulan Anda untuk mengatur sensitivitas yang sempurna.</string>
+    <string name="calibration_step1">Mengukur tingkat kebisingan latar belakang...</string>
+    <string name="calibration_step2">Sekarang pukul drum 5 kali dengan kekuatan normal Anda!</string>
+    <string name="calibration_complete">Kalibrasi selesai! Sensitivitas telah disesuaikan.</string>
+    <string name="done">Selesai</string>
+    <string name="session_complete">Sesi Selesai!</string>
+    <string name="close">Tutup</string>
+    <string name="speed">Kecepatan</string>
+    <string name="download_failed">Unduhan gagal: %1$s</string>
+    <string name="save_to_gallery">Simpan ke Galeri</string>
+    <string name="saving">Menyimpan...</string>
+    <string name="saved_to_gallery">Tersimpan ke Galeri</string>
+    <string name="save_failed">Gagal menyimpan gambar</string>
+    <string name="sharing">Membagikan...</string>
+    <string name="share_failed">Gagal membagikan gambar</string>
+
+    <!-- Calibration guide strings -->
+    <string name="calibration_guide_step1_title">Cek Kebisingan</string>
+    <string name="calibration_guide_step1_desc">Aplikasi mengukur tingkat kebisingan latar</string>
+    <string name="calibration_guide_step2_title">Pukul 5 Kali</string>
+    <string name="calibration_guide_step2_desc">Pukul drum dengan kekuatan normal Anda</string>
+    <string name="calibration_guide_step3_title">Selesai!</string>
+    <string name="calibration_guide_step3_desc">Sensitivitas otomatis disesuaikan</string>
+    <string name="calibration_guide_step1_tip">Diam dan jangan sentuh drum Anda selama langkah ini.</string>
+    <string name="calibration_guide_step2_tip">Pukul secara alami — tidak terlalu pelan, tidak terlalu keras. Gunakan kekuatan bermain normal Anda.</string>
+    <string name="calibration_guide_complete_tip">Anda dapat melakukan kalibrasi ulang kapan saja jika lingkungan atau gaya bermain berubah.</string>
+    <string name="calibration_next_step2">Selanjutnya: Pukul drum 5 kali dengan kekuatan normal Anda</string>
+    <string name="calibration_next_step3">Selanjutnya: Sensitivitas akan disesuaikan secara otomatis</string>
+    <string name="calibration_next_done">Selesai! Anda dapat mulai berlatih sekarang</string>
 </resources>

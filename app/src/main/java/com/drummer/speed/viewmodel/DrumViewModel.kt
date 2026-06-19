@@ -1,95 +1,134 @@
 package com.drummer.speed.viewmodel
 
-import android.annotation.SuppressLint
 import android.app.Application
-import android.os.Build
-import android.media.AudioAttributes
-import android.media.AudioFocusRequest
-import android.media.AudioFormat
-import android.media.AudioManager
-import android.media.AudioRecord
-import android.media.MediaRecorder
-import android.media.ToneGenerator
-import androidx.compose.runtime.*
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.core.content.FileProvider
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.drummer.speed.R
-import com.drummer.speed.data.repository.DrumRepository
-import com.drummer.speed.data.repository.UpdateRepository
+import com.drummer.speed.audio.engine.AudioFocusManager
+import com.drummer.speed.audio.engine.CalibrationEngine
+import com.drummer.speed.audio.engine.CountdownEngine
+import com.drummer.speed.audio.engine.MetronomeEngine
+import com.drummer.speed.audio.engine.StrokeDetector
 import com.drummer.speed.data.model.SessionResult
+import com.drummer.speed.domain.model.DownloadResult
+import com.drummer.speed.domain.model.UpdateCheckResult
+import com.drummer.speed.domain.usecase.CheckUpdateUseCase
+import com.drummer.speed.domain.usecase.DeleteResultUseCase
+import com.drummer.speed.domain.usecase.DownloadUpdateUseCase
+import com.drummer.speed.domain.usecase.GetHistoryUseCase
+import com.drummer.speed.domain.usecase.SaveResultUseCase
+import com.drummer.speed.util.AudioConfig
+import com.drummer.speed.util.InputValidator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.stateIn
-import javax.inject.Inject
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.TimeoutCancellationException
 import java.io.File
-import kotlin.math.abs
+import javax.inject.Inject
+
+data class PracticeUiState(
+    val strokeCount: Int = 0,
+    val timeLeft: Int = 30,
+    val isRunning: Boolean = false,
+    val isCountingDown: Boolean = false,
+    val countdownText: String = "",
+    val isMetronomeEnabled: Boolean = false,
+    val bpm: Int = 120,
+    val sensitivity: Float = 0.5f,
+    val isCalibrating: Boolean = false,
+    val calibrationStep: Int = 0,
+    val calibrationProgress: Float = 0f,
+    val calibrationHits: Int = 0,
+    val timerInput: String = "30",
+    val bpmInput: String = "120",
+    val sensitivityInput: String = "50"
+)
 
 @HiltViewModel
 class DrumViewModel @Inject constructor(
-    private val repository: DrumRepository,
-    private val updateRepository: UpdateRepository,
+    private val getHistoryUseCase: GetHistoryUseCase,
+    private val saveResultUseCase: SaveResultUseCase,
+    private val deleteResultUseCase: DeleteResultUseCase,
+    private val checkUpdateUseCase: CheckUpdateUseCase,
+    private val downloadUpdateUseCase: DownloadUpdateUseCase,
+    private val strokeDetector: StrokeDetector,
+    private val calibrationEngine: CalibrationEngine,
+    private val metronomeEngine: MetronomeEngine,
+    private val countdownEngine: CountdownEngine,
+    private val audioFocusManager: AudioFocusManager,
     application: Application
 ) : ViewModel() {
 
-    private val audioManager = application.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-    private var audioFocusRequest: AudioFocusRequest? = null
+    // MVI State - Single source of truth
+    private val _uiState = MutableStateFlow(PracticeUiState())
+    val uiState: StateFlow<PracticeUiState> = _uiState.asStateFlow()
 
-    // Update States
+    // Transient UI states
     var showUpdateDialog by mutableStateOf(false)
+        private set
     var downloadUrl by mutableStateOf("")
-    var downloadProgress by mutableIntStateOf(-1) // -1: Not downloading, 0-100: Progress
-    var isUpdateAvailable by mutableStateOf<Boolean?>(null) // null: Not checked, true: Yes, false: No
+        private set
+    var downloadProgress by mutableIntStateOf(-1)
+        private set
+    var lastSessionResult by mutableStateOf<SessionResult?>(null)
+        private set
+
+    private var practiceJob: Job? = null
+    private var metronomeJob: Job? = null
+
+    val history: StateFlow<List<SessionResult>> = getHistoryUseCase()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // ==================== UPDATE ====================
 
     fun checkAppUpdate(currentVersionCode: Int, showToastIfNoUpdate: Boolean = false, context: Context? = null) {
         viewModelScope.launch {
-            val updateData = updateRepository.checkForUpdates()
-            if (updateData != null) {
-                val latestVersionCode = (updateData["versionCode"] as? Double)?.toInt() ?: 0
-                val url = updateData["downloadUrl"] as? String ?: ""
-                
-                if (latestVersionCode > currentVersionCode) {
-                    downloadUrl = url
+            when (val result = checkUpdateUseCase(currentVersionCode)) {
+                is UpdateCheckResult.Available -> {
+                    downloadUrl = result.downloadUrl
                     showUpdateDialog = true
-                    isUpdateAvailable = true
-                } else {
-                    isUpdateAvailable = false
+                }
+                is UpdateCheckResult.UpToDate -> {
                     if (showToastIfNoUpdate && context != null) {
                         Toast.makeText(context, context.getString(R.string.no_update_available), Toast.LENGTH_SHORT).show()
                     }
                 }
-            } else {
-                if (showToastIfNoUpdate && context != null) {
-                    Toast.makeText(context, context.getString(R.string.no_update_available), Toast.LENGTH_SHORT).show()
+                is UpdateCheckResult.Error -> {
+                    if (showToastIfNoUpdate && context != null) {
+                        Toast.makeText(context, context.getString(R.string.no_update_available), Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
         }
     }
 
-    fun startUpdateDownload(context: Context) {
-        val targetFile = File(context.getExternalFilesDir(null), "update.apk")
-        if (targetFile.exists()) targetFile.delete()
+    fun dismissUpdateDialog() {
+        showUpdateDialog = false
+    }
 
+    fun startUpdateDownload(context: Context) {
+        val targetFile = File(context.getExternalFilesDir(null), AudioConfig.UPDATE_FILE_NAME)
+        if (targetFile.exists()) targetFile.delete()
         viewModelScope.launch {
-            updateRepository.downloadApk(downloadUrl, targetFile).collect { status ->
+            downloadUpdateUseCase(downloadUrl, targetFile.absolutePath).collect { status ->
                 when (status) {
-                    is UpdateRepository.DownloadStatus.Progress -> {
-                        downloadProgress = status.percentage
-                    }
-                    is UpdateRepository.DownloadStatus.Success -> {
+                    is DownloadResult.Progress -> downloadProgress = status.percentage
+                    is DownloadResult.Success -> {
                         downloadProgress = -1
                         showUpdateDialog = false
                         installApk(context, status.file)
                     }
-                    is UpdateRepository.DownloadStatus.Error -> {
+                    is DownloadResult.Error -> {
                         downloadProgress = -1
-                        Toast.makeText(context, "Download failed: ${status.message}", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, context.getString(R.string.download_failed, status.message), Toast.LENGTH_LONG).show()
                     }
                 }
             }
@@ -99,372 +138,219 @@ class DrumViewModel @Inject constructor(
     private fun installApk(context: Context, file: File) {
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "application/vnd.android.package-archive")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            setDataAndType(uri, AudioConfig.MIME_TYPE_APK)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(intent)
     }
 
-    // History from Repository
-    val history: StateFlow<List<SessionResult>> = repository.getAllHistory()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    // ==================== PRACTICE ====================
 
-    // Practice States
-    var strokeCount by mutableIntStateOf(0)
-    var timerSeconds by mutableIntStateOf(30)
-    var timeLeft by mutableIntStateOf(30)
-    var timerInput by mutableStateOf("30")
-    
-    var isRunning by mutableStateOf(false)
-    var isCountingDown by mutableStateOf(false)
-    var countdownText by mutableStateOf("")
-    
-    var isMetronomeEnabled by mutableStateOf(false)
-    var bpm by mutableIntStateOf(120)
-    var bpmInput by mutableStateOf("120")
-    
-    var sensitivity by mutableFloatStateOf(0.5f)
-    var sensitivityInput by mutableStateOf("50")
+    fun startPractice(goText: String, onFinished: (SessionResult) -> Unit) {
+        if (_uiState.value.isRunning) return
 
-    // Calibration States
-    var isCalibrating by mutableStateOf(false)
-    var calibrationStep by mutableIntStateOf(0) // 0: Idle, 1: Silence, 2: Hitting, 3: Finished
-    var calibrationProgress by mutableFloatStateOf(0f)
-    var calibrationHits by mutableIntStateOf(0)
-    var calibrationStatus by mutableStateOf("")
-
-    private var audioJob: Job? = null
-    private var timerJob: Job? = null
-    private var metronomeJob: Job? = null
-
-    private val sampleRate = 44100
-    private val channelConfig = AudioFormat.CHANNEL_IN_MONO
-    private val audioFormat = AudioFormat.ENCODING_PCM_16BIT
-    private val bufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
-
-    val currentThreshold: Int
-        get() = (15000 - (sensitivity * 14000)).toInt()
-
-    fun startPractice(goText: String = "GO!", onFinished: (SessionResult) -> Unit) {
-        if (isRunning) return
-        
         viewModelScope.launch {
-            isCountingDown = true
-            try {
-                val toneGen = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
-                for (i in 3 downTo 1) {
-                    countdownText = i.toString()
-                    toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 150)
-                    delay(1000)
-                }
-                countdownText = goText
-                toneGen.startTone(ToneGenerator.TONE_DTMF_D, 400)
-                delay(800)
-                toneGen.release()
-            } catch (_: Exception) { delay(3800) }
-            
-            isCountingDown = false
-            if (timeLeft <= 0) {
-                strokeCount = 0
-                timeLeft = timerSeconds
+            // Countdown phase
+            _uiState.update { it.copy(isCountingDown = true) }
+            countdownEngine.execute(
+                onCountdownText = { text -> _uiState.update { it.copy(countdownText = text) } },
+                goText = goText
+            )
+
+            // Start practice
+            val duration = _uiState.value.timerInput.toIntOrNull() ?: 30
+            _uiState.update {
+                it.copy(
+                    isCountingDown = false,
+                    isRunning = true,
+                    strokeCount = 0,
+                    timeLeft = duration
+                )
             }
-            isRunning = true
-            requestAudioFocus()
+
+            audioFocusManager.request { stopPractice() }
             runPracticeSession(onFinished)
         }
     }
 
     private fun runPracticeSession(onFinished: (SessionResult) -> Unit) {
-        timerJob = viewModelScope.launch {
-            while (timeLeft > 0 && isRunning) {
-                delay(1000)
-                timeLeft--
-            }
-            if (timeLeft <= 0) {
-                stopPractice()
-                val result = SessionResult(
-                    strokes = strokeCount,
-                    duration = timerSeconds,
-                    bpm = if (isMetronomeEnabled) bpm else null
-                )
-                saveResult(result)
-                onFinished(result)
-            }
-        }
+        val threshold = (AudioConfig.SENSITIVITY_MAX - (_uiState.value.sensitivity * AudioConfig.SENSITIVITY_RANGE)).toInt()
 
-        metronomeJob = viewModelScope.launch(Dispatchers.Default) {
-            if (isMetronomeEnabled) {
-                try {
-                    val toneGen = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
-                    val interval = (60000 / bpm).toLong()
-                    while (isRunning && timeLeft > 0) {
-                        toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 150)
-                        delay(interval)
-                    }
-                    toneGen.release()
-                } catch (_: Exception) {}
-            }
-        }
-
-        audioJob = viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val audioRecord = AudioRecord(
-                    MediaRecorder.AudioSource.MIC,
-                    sampleRate,
-                    channelConfig,
-                    audioFormat,
-                    bufferSize
-                )
-
-                val buffer = ShortArray(bufferSize)
-                audioRecord.startRecording()
-                
-                var lastStrokeTime = 0L
-                val debounceTime = 80L 
-
-                while (isRunning && timeLeft > 0) {
-                    val read = audioRecord.read(buffer, 0, bufferSize)
-                    if (read > 0) {
-                        var maxVal = 0
-                        for (i in 0 until read) {
-                            val absVal = abs(buffer[i].toInt())
-                            if (absVal > maxVal) maxVal = absVal
-                        }
-
-                        if (maxVal > currentThreshold) {
-                            val currentTime = System.currentTimeMillis()
-                            if (currentTime - lastStrokeTime > debounceTime) {
-                                withContext(Dispatchers.Main) {
-                                    strokeCount++
-                                }
-                                lastStrokeTime = currentTime
-                            }
-                        }
-                    }
+        practiceJob = viewModelScope.launch {
+            // Timer coroutine
+            launch {
+                while (_uiState.value.timeLeft > 0 && _uiState.value.isRunning) {
+                    delay(1000)
+                    _uiState.update { it.copy(timeLeft = it.timeLeft - 1) }
                 }
-                try { audioRecord.stop() } catch (_: Exception) {}
-                audioRecord.release()
-            } catch (_: Exception) {}
-        }
-    }
+                if (_uiState.value.timeLeft <= 0) {
+                    val result = SessionResult(
+                        strokes = _uiState.value.strokeCount,
+                        duration = _uiState.value.timerInput.toIntOrNull() ?: 30,
+                        bpm = if (_uiState.value.isMetronomeEnabled) _uiState.value.bpm else null
+                    )
+                    stopPractice()
+                    onFinished(result)
+                }
+            }
 
-    private fun saveResult(result: SessionResult) {
-        viewModelScope.launch(Dispatchers.IO) {
-            repository.insertResult(result)
+            // Stroke detection coroutine
+            launch {
+                strokeDetector.startDetection(threshold).collect {
+                    _uiState.update { it.copy(strokeCount = it.strokeCount + 1) }
+                }
+            }
         }
-    }
 
-    fun deleteResult(result: SessionResult) {
-        viewModelScope.launch(Dispatchers.IO) {
-            repository.deleteResult(result)
-        }
-    }
-
-    fun deleteSelectedResults(ids: List<String>) {
-        viewModelScope.launch(Dispatchers.IO) {
-            repository.deleteResults(ids)
+        // Metronome
+        if (_uiState.value.isMetronomeEnabled) {
+            metronomeJob = viewModelScope.launch {
+                metronomeEngine.start(
+                    bpm = _uiState.value.bpm,
+                    isRunning = { _uiState.value.isRunning },
+                    timeLeft = { _uiState.value.timeLeft }
+                )
+            }
         }
     }
 
     fun stopPractice() {
-        isRunning = false
-        audioJob?.cancel()
-        timerJob?.cancel()
+        val currentState = _uiState.value
+        if (currentState.isRunning && currentState.strokeCount > 0) {
+            val result = SessionResult(
+                strokes = currentState.strokeCount,
+                duration = currentState.timerInput.toIntOrNull() ?: 30,
+                bpm = if (currentState.isMetronomeEnabled) currentState.bpm else null
+            )
+            lastSessionResult = result
+            viewModelScope.launch { saveResultUseCase(result) }
+        }
+        _uiState.update { it.copy(isRunning = false) }
+        practiceJob?.cancel()
         metronomeJob?.cancel()
-        releaseAudioFocus()
-    }
-
-    private fun requestAudioFocus(): Boolean {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val playbackAttributes = AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
-                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                .build()
-            
-            audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
-                .setAudioAttributes(playbackAttributes)
-                .setOnAudioFocusChangeListener { focusChange ->
-                    if (focusChange == AudioManager.AUDIOFOCUS_LOSS || 
-                        focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
-                        stopPractice()
-                    }
-                }
-                .build()
-            
-            return audioManager.requestAudioFocus(audioFocusRequest!!) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
-        } else {
-            @Suppress("DEPRECATION")
-            return audioManager.requestAudioFocus(
-                { focusChange ->
-                    if (focusChange == AudioManager.AUDIOFOCUS_LOSS || 
-                        focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
-                        stopPractice()
-                    }
-                },
-                AudioManager.STREAM_MUSIC,
-                AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
-            ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
-        }
-    }
-
-    private fun releaseAudioFocus() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
-        } else {
-            @Suppress("DEPRECATION")
-            audioManager.abandonAudioFocus(null)
-        }
+        audioFocusManager.release()
     }
 
     fun resetPractice() {
         stopPractice()
-        strokeCount = 0
-        timeLeft = timerSeconds
+        _uiState.update {
+            it.copy(
+                strokeCount = 0,
+                timeLeft = it.timerInput.toIntOrNull() ?: 30
+            )
+        }
     }
+
+    // ==================== INPUT HANDLERS ====================
 
     fun updateTimer(input: String) {
-        if (input.all { it.isDigit() } && input.length <= 4) {
-            timerInput = input
-            val newVal = input.toIntOrNull() ?: 0
-            timerSeconds = newVal
-            timeLeft = newVal
-        }
-    }
-
-    fun incrementTimer(amount: Int) {
-        timerSeconds += amount
-        if (timerSeconds < 0) timerSeconds = 0
-        timeLeft = timerSeconds
-        timerInput = timerSeconds.toString()
-    }
-
-    fun updateBpm(input: String) {
-        if (input.all { it.isDigit() } && input.length <= 3) {
-            bpmInput = input
-            val newVal = input.toIntOrNull() ?: 0
-            if (newVal in 1..999) { bpm = newVal }
-        }
-    }
-
-    fun incrementBpm(amount: Int) {
-        val nextBpm = bpm + amount
-        if (nextBpm in 40..999) {
-            bpm = nextBpm
-            bpmInput = bpm.toString()
-        }
-    }
-
-    fun updateSensitivity(value: Float) {
-        sensitivity = value
-        sensitivityInput = (value * 100).toInt().toString()
-    }
-
-    fun updateSensitivityInput(input: String) {
-        if (input.all { it.isDigit() } && input.length <= 3) {
-            val percent = input.toIntOrNull() ?: 0
-            if (percent <= 100) {
-                sensitivityInput = input
-                sensitivity = percent / 100f
+        if (InputValidator.isValidTimerInput(input)) {
+            _uiState.update {
+                it.copy(
+                    timerInput = input,
+                    timeLeft = input.toIntOrNull() ?: 0
+                )
             }
         }
     }
 
-    fun startSmartCalibration() {
-        if (isCalibrating && calibrationStep != 0) return
-        isCalibrating = true
-        calibrationStep = 1
-        calibrationProgress = 0f
-        calibrationHits = 0
-        
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val audioRecord = AudioRecord(
-                    MediaRecorder.AudioSource.MIC,
-                    sampleRate,
-                    channelConfig,
-                    audioFormat,
-                    bufferSize
+    fun incrementTimer(amount: Int) {
+        val current = _uiState.value.timerInput.toIntOrNull() ?: 0
+        val next = InputValidator.clampTimer(current + amount)
+        _uiState.update {
+            it.copy(
+                timerInput = next.toString(),
+                timeLeft = next
+            )
+        }
+    }
+
+    fun updateBpm(input: String) {
+        if (InputValidator.isValidBpmInput(input)) {
+            _uiState.update { it.copy(bpmInput = input) }
+            input.toIntOrNull()?.let { bpm ->
+                if (bpm in 1..AudioConfig.BPM_MAX) {
+                    _uiState.update { it.copy(bpm = bpm) }
+                }
+            }
+        }
+    }
+
+    fun incrementBpm(amount: Int) {
+        val next = InputValidator.clampBpm(_uiState.value.bpm + amount)
+        _uiState.update {
+            it.copy(
+                bpm = next,
+                bpmInput = next.toString()
+            )
+        }
+    }
+
+    fun toggleMetronome(enabled: Boolean) {
+        _uiState.update { it.copy(isMetronomeEnabled = enabled) }
+    }
+
+    fun updateSensitivity(value: Float) {
+        _uiState.update {
+            it.copy(
+                sensitivity = value,
+                sensitivityInput = (value * 100).toInt().toString()
+            )
+        }
+    }
+
+    fun updateSensitivityInput(input: String) {
+        if (InputValidator.isValidSensitivityInput(input)) {
+            val percent = input.toIntOrNull() ?: 0
+            _uiState.update {
+                it.copy(
+                    sensitivityInput = input,
+                    sensitivity = percent / 100f
                 )
-                val buffer = ShortArray(bufferSize)
-                audioRecord.startRecording()
+            }
+        }
+    }
 
-                // Step 1: Measure Noise Floor (Silence)
-                var maxNoise = 0
-                val silenceDuration = 2000L
-                val startTime = System.currentTimeMillis()
-                while (System.currentTimeMillis() - startTime < silenceDuration) {
-                    val read = audioRecord.read(buffer, 0, bufferSize)
-                    if (read > 0) {
-                        for (i in 0 until read) {
-                            val absVal = abs(buffer[i].toInt())
-                            if (absVal > maxNoise) maxNoise = absVal
-                        }
-                    }
-                    calibrationProgress = (System.currentTimeMillis() - startTime).toFloat() / silenceDuration
-                }
+    // ==================== CALIBRATION ====================
 
-                // Step 2: Capture 5 hits
-                withContext(Dispatchers.Main) {
-                    calibrationStep = 2
-                    calibrationProgress = 0f
-                }
+    fun startSmartCalibration() {
+        if (_uiState.value.isCalibrating) return
+        _uiState.update {
+            it.copy(
+                isCalibrating = true,
+                calibrationStep = 1,
+                calibrationProgress = 0f,
+                calibrationHits = 0
+            )
+        }
 
-                val collectedHits = mutableListOf<Int>()
-                var lastHitTime = 0L
-                val debounceTime = 200L
-                val hitThreshold = maxNoise + 500 // Initial guess based on noise
-
-                while (collectedHits.size < 5 && isCalibrating) {
-                    val read = audioRecord.read(buffer, 0, bufferSize)
-                    if (read > 0) {
-                        var currentMax = 0
-                        for (i in 0 until read) {
-                            val absVal = abs(buffer[i].toInt())
-                            if (absVal > currentMax) currentMax = absVal
-                        }
-
-                        if (currentMax > hitThreshold) {
-                            val now = System.currentTimeMillis()
-                            if (now - lastHitTime > debounceTime) {
-                                collectedHits.add(currentMax)
-                                withContext(Dispatchers.Main) {
-                                    calibrationHits = collectedHits.size
-                                }
-                                lastHitTime = now
-                            }
-                        }
-                    }
-                }
-
-                // Step 3: Analysis
-                if (collectedHits.size == 5) {
-                    val avgHit = collectedHits.average().toInt()
-                    // Target threshold is 70% of hit strength, but not lower than noise floor + buffer
-                    val targetThreshold = (avgHit * 0.7f).toInt().coerceAtLeast(maxNoise + 1000)
-                    
-                    // Convert back to 0-1.0 sensitivity scale
-                    // Formula in ViewModel: threshold = 15000 - (sensitivity * 14000)
-                    // sensitivity = (15000 - threshold) / 14000
-                    val newSensitivity = ((15000f - targetThreshold) / 14000f).coerceIn(0f, 1f)
-                    
-                    withContext(Dispatchers.Main) {
-                        updateSensitivity(newSensitivity)
-                        calibrationStep = 3
-                    }
-                }
-
-                audioRecord.stop()
-                audioRecord.release()
+        viewModelScope.launch {
+            try {
+                val result = calibrationEngine.calibrate(
+                    onProgress = { p -> _uiState.update { it.copy(calibrationProgress = p) } },
+                    onHits = { h -> _uiState.update { it.copy(calibrationHits = h, calibrationStep = 2) } }
+                )
+                updateSensitivity(result.sensitivity)
+                _uiState.update { it.copy(calibrationStep = 3) }
+            } catch (e: TimeoutCancellationException) {
+                stopCalibration()
             } catch (e: Exception) {
-                e.printStackTrace()
-                withContext(Dispatchers.Main) { isCalibrating = false }
+                stopCalibration()
             }
         }
     }
 
     fun stopCalibration() {
-        isCalibrating = false
-        calibrationStep = 0
+        _uiState.update { it.copy(isCalibrating = false, calibrationStep = 0) }
+    }
+
+    // ==================== HISTORY ====================
+
+    fun deleteResult(result: SessionResult) = viewModelScope.launch {
+        deleteResultUseCase(result)
+    }
+
+    fun deleteSelectedResults(ids: List<String>) = viewModelScope.launch {
+        deleteResultUseCase.deleteMultiple(ids)
     }
 }

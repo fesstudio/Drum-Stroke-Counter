@@ -5,6 +5,21 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+// Git-based versioning otomatis
+val gitCommitCount: Int = try {
+    Runtime.getRuntime().exec("git rev-list --count HEAD")
+        .inputStream.bufferedReader().readText().trim().toInt()
+} catch (e: Exception) {
+    2 // fallback ke versionCode sebelumnya
+}
+
+val gitTagName: String = try {
+    Runtime.getRuntime().exec("git describe --tags --abbrev=0")
+        .inputStream.bufferedReader().readText().trim()
+} catch (e: Exception) {
+    "1.0.1" // fallback ke versionName sebelumnya
+}
+
 android {
     namespace = "com.drummer.speed"
     compileSdk {
@@ -17,8 +32,8 @@ android {
         applicationId = "com.drummer.speed"
         minSdk = 24
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = gitCommitCount
+        versionName = gitTagName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -46,7 +61,7 @@ ksp {
 androidComponents {
     onVariants { variant ->
         variant.outputs.forEach { output ->
-            output.outputFileName.set("Drum-Stroke-Counter-v${android.defaultConfig.versionName}.apk")
+            output.outputFileName.set("Drum-Stroke-Counter-${android.defaultConfig.versionName}.apk")
         }
     }
 }
@@ -54,6 +69,7 @@ androidComponents {
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.compose.ui)

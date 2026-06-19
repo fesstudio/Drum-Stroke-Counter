@@ -9,6 +9,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.abs
@@ -67,7 +68,7 @@ class AudioAnalyzer @Inject constructor() {
     suspend fun calibrate(
         onProgress: (Float) -> Unit,
         onHits: (Int) -> Unit
-    ): Float {
+    ): Float = withContext(Dispatchers.IO) {
         val audioRecord = AudioRecord(
             MediaRecorder.AudioSource.MIC,
             sampleRate,
@@ -123,7 +124,7 @@ class AudioAnalyzer @Inject constructor() {
             // Step 3: Analysis
             val avgHit = collectedHits.average().toInt()
             val targetThreshold = (avgHit * 0.7f).toInt().coerceAtLeast(maxNoise + 1000)
-            return ((15000f - targetThreshold) / 14000f).coerceIn(0f, 1f)
+            ((15000f - targetThreshold) / 14000f).coerceIn(0f, 1f)
 
         } finally {
             try { audioRecord.stop() } catch (_: Exception) {}

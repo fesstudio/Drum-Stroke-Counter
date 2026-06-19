@@ -77,4 +77,61 @@
     <string name="support_section">SUPPORT</string>
     <string name="save">Save</string>
     <string name="share">Share</string>
+
+    <!-- New strings for refactored UI -->
+    <string name="update_available">Update Available</string>
+    <string name="update_description">A new version of the app is available. Would you like to update now?</string>
+    <string name="update">Update</string>
+    <string name="later">Later</string>
+    <string name="splash_tagline">Track Your Drumming Progress</string>
+    <string name="about_description">Drum Stroke Counter is designed for drummers to track their practice progress accurately and privately.</string>
+    <string name="about_features">Features:\n• Real-time stroke detection via microphone\n• Adjustable timer &amp; metronome\n• Smart calibration for sensitivity\n• Practice history &amp; statistics\n• Save &amp; share results</string>
+    <string name="about_credit">Created by %s</string>
+    <string name="version_label">Version %s</string>
+    <string name="exit_confirm_description">Are you sure you want to exit the application?</string>
+    <string name="exit">Exit</string>
+    <string name="cancel">Cancel</string>
+    <string name="grant_permission">Grant Permission</string>
+    <string name="permission_required">Microphone Permission Required</string>
+    <string name="permission_description">This app needs microphone access to detect your drum strokes. Please grant permission to continue.</string>
+    <string name="no_statistics">No statistics available yet.\nStart practicing to see your stats!</string>
+    <string name="recent_sessions">Recent Sessions</string>
+    <string name="best_sessions">Best Sessions</string>
+    <string name="most_strokes">Most Strokes</string>
+    <string name="fastest_speed">Fastest Speed</string>
+    <string name="avg_speed">Avg Speed</string>
+    <string name="total_time">Total Time</string>
+    <string name="sessions">Sessions</string>
+    <string name="strokes_per_sec">/sec</string>
+    <string name="no_history">No practice history yet.\nStart a session to see your results!</string>
+    <string name="selected">selected</string>
+    <string name="calibration_description">Smart Calibration will analyze your environment and hitting strength to set the perfect sensitivity.</string>
+    <string name="calibration_step1">Measuring background noise level...</string>
+    <string name="calibration_step2">Now hit the drum 5 times with your normal strength!</string>
+    <string name="calibration_complete">Calibration complete! Sensitivity has been adjusted.</string>
+    <string name="done">Done</string>
+    <string name="session_complete">Session Complete!</string>
+    <string name="close">Close</string>
+    <string name="speed">Speed</string>
+    <string name="download_failed">Download failed: %1$s</string>
+    <string name="save_to_gallery">Save to Gallery</string>
+    <string name="saving">Saving...</string>
+    <string name="saved_to_gallery">Saved to Gallery</string>
+    <string name="save_failed">Failed to save image</string>
+    <string name="sharing">Sharing...</string>
+    <string name="share_failed">Failed to share image</string>
+
+    <!-- Calibration guide strings -->
+    <string name="calibration_guide_step1_title">Silence Check</string>
+    <string name="calibration_guide_step1_desc">App measures background noise level</string>
+    <string name="calibration_guide_step2_title">Hit 5 Times</string>
+    <string name="calibration_guide_step2_desc">Hit your drum with normal strength</string>
+    <string name="calibration_guide_step3_title">Done!</string>
+    <string name="calibration_guide_step3_desc">Sensitivity is automatically adjusted</string>
+    <string name="calibration_guide_step1_tip">Stay silent and don\'t touch your drum during this step.</string>
+    <string name="calibration_guide_step2_tip">Hit naturally — not too soft, not too hard. Just your normal playing strength.</string>
+    <string name="calibration_guide_complete_tip">You can always recalibrate if your environment or playing style changes.</string>
+    <string name="calibration_next_step2">Next: Hit the drum 5 times with your normal strength</string>
+    <string name="calibration_next_step3">Next: Sensitivity will be adjusted automatically</string>
+    <string name="calibration_next_done">Done! You can now start practicing</string>
 </resources>
